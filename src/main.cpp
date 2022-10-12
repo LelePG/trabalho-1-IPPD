@@ -9,6 +9,21 @@ typedef struct bloco
     int x;
     int y;
 } bloco;
+typedef struct vetor
+{
+    int x;
+    int y;
+} vetor;
+typedef struct vetor
+{
+    int x;
+    int y;
+} vetor;
+typedef struct movimento
+{
+    vetor Rv,Ra;
+
+} movimento;
 
 void leVideo(FILE *fp, int width, int heigth);
 void pulaCanais(FILE *fp, int width, int height);
@@ -67,8 +82,10 @@ void leVideo(FILE *fp, int width, int height)
 
     int quantidadeDeBlocos = (640 - meioTamanhoDoBloco) * (360 - meioTamanhoDoBloco);
 
-    bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco)); // TODO:Esse valor vai precisar ser alterado depois
-    bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));      // TODO:Esse valor vai precisar ser alterado depois
+    bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
+    bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
+    int *blocosIguais = (int*)malloc(quantidadeDeBlocos * sizeof(int));
+    movimento **vetoresVideo;
     // for
     //     ler
     //     comparar       CONVERSAR COM O TIME
@@ -84,28 +101,33 @@ void leVideo(FILE *fp, int width, int height)
 
     do // Vou ler todos os frames do vídeo nesse loop
     {
-        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, quantidadeDeBlocos);//Essa função tá levando todo o tempo do mundo pra resolver.
-
+        frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); // em determinado momento, vais er null
+        zeraBlocosIguais(blocosIguais);
+        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, blocosIguais, quantidadeDeBlocos);//Essa função tá levando todo o tempo do mundo pra resolver.
+        int *vetor = (int*)malloc(quantidadeDeBlocos * sizeof(int));
+        gerarvetores(frameEmBlocosReferencia, frameEmBlocosAtual, blocosIguais, quantidadeDeBlocos);
         // comparaBloco()
         // manipulaFrame(frameAtual,frameReferencia);
         // Aqui que a gente tem que fazer a manipulação do frame de referencia com o frame atual
         printf("Li o frame %d\n", i);
         i++;
-        frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); // em determinado momento, vais er null
     } while (frameEmBlocosAtual != NULL);
 }
-void comparaBlocos(bloco *frame1, bloco *frame2, int quantidadeDeBlocos)
+void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos)
 {
     printf("Estou comparando\n");
     bool igualdade;
+    
     for (int i = 0; i < quantidadeDeBlocos; i++)
     {
         for (int j = 0; j < quantidadeDeBlocos; j++)
         {
             igualdade = blocosSaoIguais(frame1[i], frame2[j]);
             printf("%d",igualdade);
+            blocosIguais[i] = j;
         }
     }
+    return blocosSaoIguais;
 }
 
 bool blocosSaoIguais(bloco a, bloco b)
@@ -160,6 +182,25 @@ bloco criaBloco(int i, int j, unsigned char **frame)
     }
     return blocoRetorno;
 }
+gerarvetores(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos)
+{
+    for (int i = 0; i < quantidadeDeBlocos; i++)
+    {
+        if(blocosIguais!=0)
+        {
+
+        }
+    }
+}
+
+zeraBlocosIguais(int* blocosIguais)
+{
+    for (int i = 0; i < quantidadeDeBlocos; i++)
+    {
+        blocosIguais[i] = -1;
+    }
+}
+
 // void fullSearch(unsigned char ** frame1, unsigned char ** frame2, unsigned char ** Rv, unsigned char ** Ra) {
 //     coordenada* Rv, Ra;//Tipo que eu criei com os valores x e y
 // //     //alocar os vetore Rv e Ra
