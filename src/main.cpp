@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <cstdlib>
 
-const int tamanhoDoBloco = 7;
+const int tamanhoDoBloco = 8;
 const int meioTamanhoDoBloco = (int)tamanhoDoBloco / 2;
 
 typedef struct bloco
@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
     // fullSearch(frame1, frame2, Rv, Ra);
     //  Close file
     fclose(fp);
+    return 0;
 }
 
 int leFrame(FILE *fp, unsigned char **frame, int width, int height)
@@ -84,13 +85,15 @@ void leVideo(FILE *fp, int width, int height)
     //  unsigned char ***video = (unsigned char***)malloc(sizeof **frameReferencia * height * width);
     // unsigned char **frameAtual = (unsigned char **)malloc(sizeof *frameAtual * height);
 
-    int quantidadeDeBlocos = (int)((width-tamanhoDoBloco) / tamanhoDoBloco) * (int)((height-tamanhoDoBloco)/ tamanhoDoBloco);
+    //int quantidadeDeBlocos = (int)((width-tamanhoDoBloco) / tamanhoDoBloco) * (int)((height-tamanhoDoBloco)/ tamanhoDoBloco);
+    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
     bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
     int *blocosIguais = (int *)malloc(quantidadeDeBlocos * sizeof(int));
 
     printf("quantidade de Blocos %d\n", quantidadeDeBlocos);
+    
     frameEmBlocosReferencia = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos);
 
     //imprimeBloco(frameEmBlocosReferencia[1]);
@@ -102,7 +105,8 @@ void leVideo(FILE *fp, int width, int height)
 
     do // Vou ler todos os frames do vídeo nesse loop
     {
-        // zeraBlocosIguais(blocosIguais, quantidadeDeBlocos);
+
+        zeraBlocosIguais(blocosIguais, quantidadeDeBlocos);
         comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, blocosIguais, quantidadeDeBlocos); // Essa função tá levando todo o tempo do mundo pra resolver.
         // vetor blocos iguais tem a posição do frame1 guardada no indice e a posição mais
         // próxima do frame 2 guardada no valor
@@ -149,7 +153,7 @@ void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantida
         Ra[i].x = frame2[indiceBlocoMaisParecido].x;
         Ra[i].y = frame2[indiceBlocoMaisParecido].y;
 
-    printf("(%d,%d) => (%d,%d)\n", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
+        printf("(%d,%d) => (%d,%d)\n", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
         // mais parecido com frame1[i] seja indice 25
         // 0 -> blocosIguais[0]
         // printf("%d\n", maiorNivelDeProximidade);
@@ -173,9 +177,9 @@ void imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
 void imprimeBloco(bloco b)
 {
 
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 8; i++)
     {
-        for (int j = 0; j < 7; j++)
+        for (int j = 0; j < 8; j++)
         {
             printf(" %d ", b.bloco[i][j]);
         }
@@ -212,14 +216,13 @@ bloco *divideFrameEmBlocos(FILE *fp, int width, int height, int quantidadeDeBloc
     {
         return NULL;
     }
-    for (int i = meioTamanhoDoBloco; i < height - meioTamanhoDoBloco; i++)
+    for (int i = 0; i < height / tamanhoDoBloco; i+= tamanhoDoBloco)
     {
-        for (int j = meioTamanhoDoBloco; j < width - meioTamanhoDoBloco; j++)
+        for (int j = 0; j < width / tamanhoDoBloco; j+= tamanhoDoBloco)
         {
             blocoAtual = criaBloco(i, j, frameAtual);
-            //imprimeBloco(blocoAtual);
+            frameEmBlocos[(j/tamanhoDoBloco) + ((i/tamanhoDoBloco)*(width/tamanhoDoBloco))/tamanhoDoBloco] = blocoAtual; // Coloca o bloco atual em uma posição do array
         }
-        frameEmBlocos[i - meioTamanhoDoBloco] = blocoAtual; // Coloca o bloco atual em uma posição do array
     }
 
     return frameEmBlocos;
@@ -230,11 +233,11 @@ bloco criaBloco(int i, int j, unsigned char **frame)
     bloco blocoRetorno;
     blocoRetorno.x = i;
     blocoRetorno.y = j;
-    for (int k = -meioTamanhoDoBloco; k <= meioTamanhoDoBloco; k++)
+    for (int k = 0; k < tamanhoDoBloco; k++)
     {
-        for (int l = -meioTamanhoDoBloco; l <= meioTamanhoDoBloco; l++)
+        for (int l = 0; l < tamanhoDoBloco; l++)
         {
-            blocoRetorno.bloco[k + meioTamanhoDoBloco][l + meioTamanhoDoBloco] = frame[i + k][j + l];
+            blocoRetorno.bloco[k][l] = frame[i + k][j + l];
         }
     }
     return blocoRetorno;
