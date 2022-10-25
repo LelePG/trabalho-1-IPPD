@@ -86,7 +86,7 @@ void leVideo(FILE *fp, int width, int height)
     // unsigned char **frameAtual = (unsigned char **)malloc(sizeof *frameAtual * height);
 
     //int quantidadeDeBlocos = (int)((width-tamanhoDoBloco) / tamanhoDoBloco) * (int)((height-tamanhoDoBloco)/ tamanhoDoBloco);
-    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
+    int quantidadeDeBlocos = 60;//(int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
     bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
@@ -103,6 +103,7 @@ void leVideo(FILE *fp, int width, int height)
     // Essa leitura aqui tem que ser fora do laço pra mim poder colocar a condição de parada no final do laço
     frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); // em determinado momento, vais er null
 
+    int w = 0;
     do // Vou ler todos os frames do vídeo nesse loop
     {
 
@@ -115,7 +116,8 @@ void leVideo(FILE *fp, int width, int height)
 
         // printf("Li o frame %d\n", i);
         // i++;
-    } while (false); //(frameEmBlocosAtual != NULL);
+        w++;
+    } while (w != 3); //(frameEmBlocosAtual != NULL);
 }
 void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos)
 {
@@ -131,7 +133,7 @@ void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantida
     for (int i = 0; i < quantidadeDeBlocos ;i++)                                    // frame1
     {
         menorNivelDeProximidade = 1000000;
-        indiceBlocoMaisParecido = -1;
+        indiceBlocoMaisParecido = -1;      
         for (int j = 0; j < quantidadeDeBlocos; j++) // frame2
         {
             
@@ -152,15 +154,18 @@ void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantida
         Rv[i].y = frame1[i].y; // travado
         Ra[i].x = frame2[indiceBlocoMaisParecido].x;
         Ra[i].y = frame2[indiceBlocoMaisParecido].y;
-
-        printf("(%d,%d) => (%d,%d)\n", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
+        
+        printf("(%d,%d) => (%d,%d)    ", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
         // mais parecido com frame1[i] seja indice 25
         // 0 -> blocosIguais[0]
         // printf("%d\n", maiorNivelDeProximidade);
     }
     int i = 6;
-    exit(0);
-    imprimeCorrespondencia(Rv, Ra, quantidadeDeBlocos);
+    printf("\n");
+    // imprimeBloco(frame1[59]);
+    // imprimeCorrespondencia(Rv, Ra, quantidadeDeBlocos);
+    
+    // exit(0);
     return; // blocosSaoIguais;
 }
 
@@ -198,7 +203,7 @@ int encontraBlocoMaisParecido(bloco a, bloco b)
     {
         for (int j = 0; j < tamanhoDoBloco; j++)
         {
-            diff += (int)a.bloco[i][j] - (int)b.bloco[i][j];
+            diff += abs( (int)a.bloco[i][j] - (int)b.bloco[i][j]);
         }
     }
     return diff;
@@ -221,10 +226,9 @@ bloco *divideFrameEmBlocos(FILE *fp, int width, int height, int quantidadeDeBloc
         for (int j = 0; j < width / tamanhoDoBloco; j+= tamanhoDoBloco)
         {
             blocoAtual = criaBloco(i, j, frameAtual);
-            frameEmBlocos[(j/tamanhoDoBloco) + ((i/tamanhoDoBloco)*(width/tamanhoDoBloco))/tamanhoDoBloco] = blocoAtual; // Coloca o bloco atual em uma posição do array
+            frameEmBlocos[(j/tamanhoDoBloco) + ((i/tamanhoDoBloco)*(width/tamanhoDoBloco))/tamanhoDoBloco] = blocoAtual; // Coloca o bloco atual em uma posição do array 
         }
     }
-
     return frameEmBlocos;
 }
 
