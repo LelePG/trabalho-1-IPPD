@@ -2,7 +2,6 @@
 #include <cstdlib>
 
 const int tamanhoDoBloco = 8;
-const int meioTamanhoDoBloco = (int)tamanhoDoBloco / 2;
 
 typedef struct bloco
 {
@@ -20,7 +19,6 @@ typedef struct coordenada
 // typedef struct movimento
 // {
 //     vetor Rv,Ra;
-
 // } movimento;
 
 void leVideo(FILE *fp, int width, int heigth);
@@ -84,9 +82,9 @@ void leVideo(FILE *fp, int width, int height)
     // unsigned char **frameReferencia = (unsigned char **)malloc(sizeof *frameReferencia * height);
     //  unsigned char ***video = (unsigned char***)malloc(sizeof **frameReferencia * height * width);
     // unsigned char **frameAtual = (unsigned char **)malloc(sizeof *frameAtual * height);
-
     //int quantidadeDeBlocos = (int)((width-tamanhoDoBloco) / tamanhoDoBloco) * (int)((height-tamanhoDoBloco)/ tamanhoDoBloco);
-    int quantidadeDeBlocos = 60;//(int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
+    
+    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
     bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
@@ -95,6 +93,7 @@ void leVideo(FILE *fp, int width, int height)
     printf("quantidade de Blocos %d\n", quantidadeDeBlocos);
     
     frameEmBlocosReferencia = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos);
+    exit(0);
 
     //imprimeBloco(frameEmBlocosReferencia[1]);
     // Leitura dos demais frames
@@ -117,7 +116,7 @@ void leVideo(FILE *fp, int width, int height)
         // printf("Li o frame %d\n", i);
         // i++;
         w++;
-    } while (w != 3); //(frameEmBlocosAtual != NULL);
+    } while (w != 1); //(frameEmBlocosAtual != NULL);
 }
 void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos)
 {
@@ -155,7 +154,8 @@ void comparaBlocos(bloco *frame1, bloco *frame2, int *blocosIguais, int quantida
         Ra[i].x = frame2[indiceBlocoMaisParecido].x;
         Ra[i].y = frame2[indiceBlocoMaisParecido].y;
         
-        printf("(%d,%d) => (%d,%d)    ", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
+       
+        // printf("(%d,%d) => (%d,%d)    ", Rv[i].x, Rv[i].y, Ra[i].x, Ra[i].y);
         // mais parecido com frame1[i] seja indice 25
         // 0 -> blocosIguais[0]
         // printf("%d\n", maiorNivelDeProximidade);
@@ -221,14 +221,27 @@ bloco *divideFrameEmBlocos(FILE *fp, int width, int height, int quantidadeDeBloc
     {
         return NULL;
     }
-    for (int i = 0; i < height / tamanhoDoBloco; i+= tamanhoDoBloco)
+    int count = 0;
+    for (int i = 0; i < height; i+= tamanhoDoBloco)
     {
-        for (int j = 0; j < width / tamanhoDoBloco; j+= tamanhoDoBloco)
+        for (int j = 0; j < width; j+= tamanhoDoBloco)
         {
             blocoAtual = criaBloco(i, j, frameAtual);
-            frameEmBlocos[(j/tamanhoDoBloco) + ((i/tamanhoDoBloco)*(width/tamanhoDoBloco))/tamanhoDoBloco] = blocoAtual; // Coloca o bloco atual em uma posição do array 
+            //
+            //int indice = (int)((j/tamanhoDoBloco) + ((i/tamanhoDoBloco)*(width/tamanhoDoBloco))/tamanhoDoBloco);
+            frameEmBlocos[count] = blocoAtual; // Coloca o bloco atual em uma posição do array 
+
+        count++;
         }
+
     }
+     for (int j = 0; j < 3600; j++){
+        //  printf("(%d, %d)", frameEmBlocos[j].x, frameEmBlocos[j].y);
+         imprimeBloco(frameEmBlocos[j]);
+         printf("\n");
+     }
+    printf("%d", count);
+
     return frameEmBlocos;
 }
 
