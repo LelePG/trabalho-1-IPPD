@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
     int width = 640;
     int height = 360;
 
-    FILE *fp = fopen("./video.yuv", "rb");
+    FILE *fp = fopen("../video.yuv", "rb");
 
     if (fp == NULL)
     {
