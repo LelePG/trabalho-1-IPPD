@@ -3,7 +3,7 @@
 gcc -fopenmp arquivo2.c -lpthread && ./a.out
 
 ## Comando para rodar o programa e gerar uma saída
-    g++ main.cpp -o main && ./main >a.txt
+     g++ -fopenmp main.cpp -lpthread && ./a.out >a.txt
 
 ## PC 4 núcleos
  - Roda o programa em 13 minutos e 20 segundos. 
