@@ -6,7 +6,7 @@ gcc -fopenmp arquivo2.c -lpthread && ./a.out
     g++ main.cpp -o main && ./main >a.txt
 
 ## PC 4 núcleos
- - ? 
+ - Roda o programa em 13 minutos e 20 segundos. 
 
 ## PC 8 núcleos 16 threads
-- Roda o programa em 38 segundos
+- Roda o programa em 38 segundos.
