@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <iostream>
-#include <string>		// Necessário para usar strings
+#include <string>	// Necessário para usar strings
+
+#include <omp.h>	
 using namespace std;
 
 const int tamanhoDoBloco = 8;
@@ -50,6 +52,7 @@ int main(int argc, char *argv[])
         printf("Cannot open file");
         return 0;
     }
+    
 
     leVideo(fp, width, height);
     // fullSearch(frame1, frame2, Rv, Ra);
@@ -110,10 +113,12 @@ void leVideo(FILE *fp, int width, int height)
     // } while ((frameEmBlocosAtual != NULL)); //(frameEmBlocosAtual != NULL);
     
 	
-	#pragma omp parallel
+	#pragma omp parallel shared(fp, width, height,quantidadeDeBlocos)
 	{	
-		#pragma omp for
-		for (int w = 0;  w < 120 -2 ; w++){//quantidadeDeFrames
+        
+		#pragma omp for 
+		for (int w = 0;  w < 18 -2 ; w++){//quantidadeDeFrames
+            printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
             frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); // em determinado momento, vais er null
 			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, quantidadeDeBlocos, w); // Essa função tá levando todo o tempo do mundo pra resolver.
 			
@@ -132,23 +137,29 @@ string comparaBlocos(bloco *frame1, bloco *frame2, int quantidadeDeBlocos, int f
     int nivelDeProximidadeAtual;
 
     // Criar os vetores Rv e Ra que são vetores de coordenadas
+    //Mover isso para fora e usar global
     coordenada *Rv = (coordenada *)malloc(quantidadeDeBlocos * sizeof(coordenada)); // referencia
     coordenada *Ra = (coordenada *)malloc(quantidadeDeBlocos * sizeof(coordenada)); // atual
 	int i,j;
 	
-    for ( int i = 0; i < quantidadeDeBlocos ;i++)                                    // frame1
+    // #pragma omp shared(Rv, Ra, frame1,frame2,i) private(indiceBlocoMaisParecido,nivelDeProximidadeAtual,j) for collapse(2)
+    for (  i = 0; i < quantidadeDeBlocos ;i++)                                    // frame1
     {
          
 		     
-        for (int j = 0; j < quantidadeDeBlocos; j++) // frame2
+        for (j = 0; j < quantidadeDeBlocos; j++) // frame2
         {
             
-            nivelDeProximidadeAtual = encontraBlocoMaisParecido(frame1[i], frame2[j]);
-            if (nivelDeProximidadeAtual < menorNivelDeProximidade && nivelDeProximidadeAtual>0)
-            {
-                menorNivelDeProximidade = nivelDeProximidadeAtual;
-                indiceBlocoMaisParecido = j;
-            }
+            
+                nivelDeProximidadeAtual = encontraBlocoMaisParecido(frame1[i], frame2[j]);
+                if (nivelDeProximidadeAtual < menorNivelDeProximidade && nivelDeProximidadeAtual>0)
+                {
+                    menorNivelDeProximidade = nivelDeProximidadeAtual;
+                    indiceBlocoMaisParecido = j;
+                }
+           
+
+            
         }
         // indiceBlocoMaisParecido vai ter o índice do bloco mais parecido com frame1[i]
 
@@ -156,9 +167,13 @@ string comparaBlocos(bloco *frame1, bloco *frame2, int quantidadeDeBlocos, int f
         Rv[i].y = frame1[i].y; // travado
         Ra[i].x = frame2[indiceBlocoMaisParecido].x;
         Ra[i].y = frame2[indiceBlocoMaisParecido].y;
-        
-		menorNivelDeProximidade = 1000000;
+
+        menorNivelDeProximidade = 1000000;
         indiceBlocoMaisParecido = -1;
+        
+        // Como deixei essas variaveis com priate, não preciso resetar ao fial do for.
+		// menorNivelDeProximidade = 1000000;
+        // indiceBlocoMaisParecido = -1;
         
 
     }
