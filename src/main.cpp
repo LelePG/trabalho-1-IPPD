@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
 {
     int width = 640;
     int height = 360;
+    printf("Total de Threads Disponíveis %d", omp_get_max_threads());
 
     FILE *fp = fopen("../video.yuv", "rb");
 
