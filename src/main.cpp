@@ -8,7 +8,7 @@
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 12;
+const int quantidadeDeFrames = 120;
 
 typedef struct TypeFrame
 {
@@ -112,7 +112,7 @@ void leVideo(FILE *fp, int width, int height, string *str)
     int quantidadeDeBlocos = (int)((width)/tamanhoDoBloco) * (int)((height)/tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
-    bloco *frameEmBlocosAtual= (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
+    // bloco *frameEmBlocosAtual= (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
 
     //printf("Quantidade de Blocos: %d\n", quantidadeDeBlocos);
 
@@ -127,19 +127,20 @@ void leVideo(FILE *fp, int width, int height, string *str)
             
      coordenada Rv[quantidadeDeFrames][quantidadeDeBlocos];
      coordenada Ra[quantidadeDeFrames][quantidadeDeBlocos];
-
+ 
 	#pragma omp parallel for shared(frameEmBlocosReferencia,quantidadeDeBlocos, Rv, Ra)
 		for (int w = 1;  w < quantidadeDeFrames ; w++) 
         {
-            //divideFrameEmBlocos(framesPraComparar[w], frameEmBlocosAtual, quantidadeDeBlocos); 
-             frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); //em determinado momento vai ser null
+            //Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
+            // Então posso dar free nele aqui dentro do for depois
+            bloco* frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); //em determinado momento vai ser null
             
             //printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
 			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w-1],Ra[w-1], quantidadeDeBlocos, w); 
             str[w-1] = imprimeCorrespondencia(Rv[w-1],Ra[w-1], quantidadeDeBlocos);
+            free(frameEmBlocosAtual);
         }
     deletaTypeFrame(framesPraComparar);
-    free(frameEmBlocosAtual);
     free(frameEmBlocosReferencia);
     return ;
 }
@@ -226,6 +227,7 @@ int calculaNivelDeProximidade(bloco a, bloco b)
 
 bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
 {
+
     bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco)); // TODO:Esse valor vai precisar ser alterado depois
     bloco blocoAtual;
 
