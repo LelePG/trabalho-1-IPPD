@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <iostream>
-#include <string>	// Necessário para usar strings
+#include <string> //Necessário para usar strings
+#include <cstring>
+#include <omp.h>
 
-#include <omp.h>	
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 120;
+const int quantidadeDeFrames = 11;
 
-typedef struct TypeFrame {
+typedef struct TypeFrame
+{
     int width = 640;
     int height = 360;
     unsigned char** conteudo = (unsigned char **)malloc(sizeof *conteudo*height);
@@ -28,23 +30,13 @@ typedef struct coordenada
     int y;
 } coordenada;
 
-// typedef struct movimento
-// {
-//     vetor Rv,Ra;
-// } movimento;
-
-void leVideo(FILE *fp, int width, int heigth);
+string* leVideo(FILE *fp, int width, int heigth, string *str);
 void pulaCanais(FILE *fp, int width, int height);
 int leFrame(FILE *fp, TypeFrame frame, int width, int height);
 bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos);
-// bloco *divideFrameEmBlocos(FILE *fp, int width, int height, int quantidadeDeBlocos);
-// void fullSearch(unsigned char ** frame1, unsigned char ** frame2, unsigned char ** Rv, unsigned char ** Ra);
 bloco criaBloco(int i, int j, unsigned char **frame);
-bool blocosSaoIguais(bloco a, bloco b);
-string comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao);
-void zeraBlocosIguais(int *blocosIguais, int quantidadeDeBlocos);
-void gerarVetores(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos);
-int encontraBlocoMaisParecido(bloco a, bloco b);
+void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao);
+int calculaNivelDeProximidade(bloco a, bloco b);
 string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor);
 void imprimeBloco(bloco b);
 
@@ -52,7 +44,8 @@ int main(int argc, char *argv[])
 {
     int width = 640;
     int height = 360;
-    printf("Total de Threads Disponíveis %d", omp_get_max_threads());
+    printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
+    string str[quantidadeDeFrames];
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -62,17 +55,20 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    leVideo(fp, width, height);
-    // fullSearch(frame1, frame2, Rv, Ra);
-    //  Close file
-    fclose(fp);
+    leVideo(fp, width, height, str);
+    for(int i =0; i <quantidadeDeFrames-1;i++){
+    printf("_______________________________\nFrame[%d]\n%s_______________________________\n",i,str[i].c_str());
+
+    }
+    fclose(fp); 
+
     return 0;
 }
 
 int leFrame(FILE *fp, TypeFrame frame, int width, int height)
 {
     for (int i = 0; i < frame.height; i++)
-    {                                                                                         // colunas
+    {                                                                                         
         frame.conteudo[i] = (unsigned char *)malloc(sizeof *frame.conteudo[i] * frame.width); // aloca a linha
         int bytesLidos = fread(frame.conteudo[i], sizeof(unsigned char), frame.width, fp);
         if (bytesLidos < sizeof(unsigned char))
@@ -80,7 +76,6 @@ int leFrame(FILE *fp, TypeFrame frame, int width, int height)
             return 0;
         }
     }
-    // printf("%s\n", frame.conteudo[5]); // print debug
     pulaCanais(fp, frame.width, frame.height);
     return 1;
 }
@@ -91,66 +86,73 @@ void pulaCanais(FILE *fp, int width, int height)
     fread(aux, sizeof(unsigned char), width * height / 2, fp);
 }
 
-void leVideo(FILE *fp, int width, int height)
+string* leVideo(FILE *fp, int width, int height, string *str)
 {
-    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height)/ tamanhoDoBloco);
+    int quantidadeDeBlocos = (int)((width)/tamanhoDoBloco) * (int)((height)/tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
     bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
-    //int *blocosIguais = (int *)malloc(quantidadeDeBlocos * sizeof(int));
 
-    printf("quantidade de Blocos %d\n", quantidadeDeBlocos);
+    printf("Quantidade de Blocos: %d\n", quantidadeDeBlocos);
 
     TypeFrame framesPraComparar[quantidadeDeFrames];
-    for (int w = 0;  w < quantidadeDeFrames  ; w++){
+    for (int w = 0;  w < quantidadeDeFrames  ; w++)
+    {
         leFrame(fp, framesPraComparar[w], width, height);
     }
     
     frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos);
 
-    // Essa leitura aqui tem que ser fora do laço pra mim poder colocar a condição de parada no final do laço
-    //frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); // em determinado momento, vais er null   
+    //Essa leitura aqui tem que ser fora do laço pra eu poder colocar a condição de parada no final do laço
+    //frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); //em determinado momento vai ser null   
+    
     coordenada Rv[quantidadeDeFrames][quantidadeDeBlocos];
     coordenada Ra[quantidadeDeFrames][quantidadeDeBlocos];
-    //coordenada **Rv = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Rv)); // referencia
-    //coordenada **Ra = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Ra)); // atual
+    //coordenada **Rv = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Rv)); //referencia
+    //coordenada **Ra = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Ra)); //atual
+    
+    char cstr[quantidadeDeFrames][22*quantidadeDeBlocos];// = new char[quantidadeDeFrames][22];
+    // std::string str[quantidadeDeFrames];
 	#pragma omp parallel for shared(frameEmBlocosReferencia,quantidadeDeBlocos, Rv, Ra) 
-		for (int w = 1;  w < quantidadeDeFrames ; w++){//quantidadeDeFrames
-            frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); // em determinado momento, vais er null
+		for (int w = 1;  w < quantidadeDeFrames ; w++) //quantidadeDeFrames
+        {
+            frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); //em determinado momento vai ser null
             // printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
-			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w-1],Ra[w-1], quantidadeDeBlocos, w); // Essa função tá levando todo o tempo do mundo pra resolver.
-		}
-	
+
+			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w-1],Ra[w-1], quantidadeDeBlocos, w); //Essa função tá levando todo o tempo do mundo pra resolver
+            //
+            str[w-1] = imprimeCorrespondencia(Rv[w-1],Ra[w-1], quantidadeDeBlocos);
+            // printf("%d ",w);
+        }
+    return str;
 }
 
-string comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao){
-    printf("Estou comparando\n");
+void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao)
+{
+    printf("Estou comparando frame\n");
     bool igualdade;
     // int indiceBlocoMaisParecido = -1;
     // int menorNivelDeProximidade = 1000000;
     int nivelDeProximidadeAtual[quantidadeDeBlocos];
-    
     int indiceBlocoMaisParecido[quantidadeDeBlocos];
     int menorNivelDeProximidade[quantidadeDeBlocos];
-    for (int  i = 0; i < quantidadeDeBlocos;i++){
+
+    for (int  i = 0; i < quantidadeDeBlocos;i++)
+    {
         indiceBlocoMaisParecido[i] = -1;
         menorNivelDeProximidade[i] = 1000000;
     }
-
-    // Criar os vetores Rv e Ra que são vetores de coordenadas
-    //Mover isso para fora e usar global
-    // coordenada *Rv = (coordenada *)malloc(quantidadeDeBlocos * sizeof(coordenada)); // referencia
-    // coordenada *Ra = (coordenada *)malloc(quantidadeDeBlocos * sizeof(coordenada)); // atual
-	int i,j;
+    int i,j;
 	
     // #pragma omp shared(Rv, Ra, frame1,frame2,i) private(indiceBlocoMaisParecido,nivelDeProximidadeAtual,j) for collapse(2)
-  
         #pragma for collapse(2) nowait schedule(static)
-        for (  i = 0; i < quantidadeDeBlocos ;i++){                                    // frame1
-                for (j = 0; j <= quantidadeDeBlocos; j++){ // frame2
-                
-                        if(j < quantidadeDeBlocos){
-                            nivelDeProximidadeAtual[i] = encontraBlocoMaisParecido(frame1[i], frame2[j]);
+        for ( i = 0; i < quantidadeDeBlocos; i++) // frame1
+        {         
+                for (j = 0; j <= quantidadeDeBlocos; j++) // frame2
+                { 
+                        if(j < quantidadeDeBlocos)
+                        {
+                            nivelDeProximidadeAtual[i] = calculaNivelDeProximidade(frame1[i], frame2[j]);
                             if (nivelDeProximidadeAtual[i] < menorNivelDeProximidade[i] && nivelDeProximidadeAtual[i]>0)
                             {
                                 menorNivelDeProximidade[i] = nivelDeProximidadeAtual[i];
@@ -159,35 +161,19 @@ string comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *R
                             }
                         }else{
                             Rv[i].x = frame1[i].x;
-                            Rv[i].y = frame1[i].y; // travado
+                            Rv[i].y = frame1[i].y; 
                             Ra[i].x = frame2[indiceBlocoMaisParecido[i]].x;
-                            Ra[i].y = frame2[indiceBlocoMaisParecido[i]].y;
-                            
+                            Ra[i].y = frame2[indiceBlocoMaisParecido[i]].y;   
                             // printf("%d, %d\n", Ra[i].y, frame2[indiceBlocoMaisParecido[i]].y);
                         }
-                }
-                
-            }
+                }      
+        }
     
-    
-    // #pragma omp barrier
-    // for (  i = 0; i < quantidadeDeBlocos ;i++)  {                                  // frame1
-    //     // Rv[i].x = frame1[i].x;
-    //     // Rv[i].y = frame1[i].y; // travado
-    //     // Ra[i].x = frame2[indiceBlocoMaisParecido[i]].x;
-    //     // Ra[i].y = frame2[indiceBlocoMaisParecido[i]].y;
-    //     printf("%d, %d\n", Rv[i].x, Rv[i].y);
-    // }
-    string concat = imprimeCorrespondencia(Rv,Ra, quantidadeDeBlocos); 
-  
-    
-	printf("_______________________________\nFrame[%d]\n%s_______________________________\n",framePosicao, concat.c_str());
-    return concat ; // blocosSaoIguais;
+    return ; // blocosSaoIguais;
 }
 
 string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
 {
-
     string retorno = "";
     for (int i = 0; i < tamanhoVetor; i++)
     {
@@ -199,12 +185,10 @@ string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
         retorno += "(" + Rvx + "," + Rvy + ") => (" + Rax + "," + Ray + ")\n";
     }
     return retorno;
-    
 }
 
 void imprimeBloco(bloco b)
 {
-
     for (int i = 0; i < 8; i++)
     {
         for (int j = 0; j < 8; j++)
@@ -212,12 +196,11 @@ void imprimeBloco(bloco b)
             printf(" %d ", b.bloco[i][j]);
         }
         printf("\n");
-
     }
     printf("----------------------------------------------------------------\n");
 }
 
-int encontraBlocoMaisParecido(bloco a, bloco b)
+int calculaNivelDeProximidade(bloco a, bloco b)
 {
     float diff = 0;
 	// #pragma omp for collapse(2)
@@ -270,20 +253,3 @@ bloco criaBloco(int i, int j, unsigned char **frame)
     }
     return blocoRetorno;
 }
-/*void gerarVetores(bloco *frame1, bloco *frame2, int *blocosIguais, int quantidadeDeBlocos)
-{
-    for (int i = 0; i < quantidadeDeBlocos; i++)
-    {
-        if (blocosIguais != 0)
-        {
-        }
-    }
-}*/
-
-/*void zeraBlocosIguais(int *blocosIguais, int quantidadeDeBlocos)
-{
-    for (int i = 0; i < quantidadeDeBlocos; i++)
-    {
-        blocosIguais[i] = -1;
-    }
-}*/
