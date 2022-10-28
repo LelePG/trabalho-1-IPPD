@@ -8,7 +8,7 @@
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 11;
+const int quantidadeDeFrames = 118;
 
 typedef struct TypeFrame
 {
@@ -30,15 +30,16 @@ typedef struct coordenada
     int y;
 } coordenada;
 
-string* leVideo(FILE *fp, int width, int heigth, string *str);
+void leVideo(FILE *fp, int width, int heigth, string *str);
 void pulaCanais(FILE *fp, int width, int height);
 int leFrame(FILE *fp, TypeFrame frame, int width, int height);
-bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos);
+void divideFrameEmBlocos(TypeFrame frame, bloco *resultado, int quantidadeDeBlocos);
 bloco criaBloco(int i, int j, unsigned char **frame);
 void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao);
 int calculaNivelDeProximidade(bloco a, bloco b);
 string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor);
 void imprimeBloco(bloco b);
+void deletaTypeFrame(TypeFrame frame);
 
 int main(int argc, char *argv[])
 {
@@ -46,6 +47,7 @@ int main(int argc, char *argv[])
     int height = 360;
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
     string str[quantidadeDeFrames];
+
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -84,16 +86,25 @@ void pulaCanais(FILE *fp, int width, int height)
 {
     unsigned char *aux = (unsigned char *)malloc(sizeof *aux * width * height);
     fread(aux, sizeof(unsigned char), width * height / 2, fp);
+    free(aux);
+}
+void deletaTypeFrame(TypeFrame *frame){
+    for(int i = 0; i< quantidadeDeFrames; i++){
+        for(int j = 0; j< frame[i].height; j++){
+            free(frame[i].conteudo[j]);
+        }
+        free(frame[i].conteudo);
+    }
 }
 
-string* leVideo(FILE *fp, int width, int height, string *str)
+void leVideo(FILE *fp, int width, int height, string *str)
 {
     int quantidadeDeBlocos = (int)((width)/tamanhoDoBloco) * (int)((height)/tamanhoDoBloco);
 
     bloco *frameEmBlocosReferencia = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
-    bloco *frameEmBlocosAtual = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
+    bloco *frameEmBlocosAtual= (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
 
-    printf("Quantidade de Blocos: %d\n", quantidadeDeBlocos);
+    // printf("Quantidade de Blocos: %d\n", quantidadeDeBlocos);
 
     TypeFrame framesPraComparar[quantidadeDeFrames];
     for (int w = 0;  w < quantidadeDeFrames  ; w++)
@@ -101,38 +112,28 @@ string* leVideo(FILE *fp, int width, int height, string *str)
         leFrame(fp, framesPraComparar[w], width, height);
     }
     
-    frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos);
+     divideFrameEmBlocos(framesPraComparar[0],frameEmBlocosReferencia, quantidadeDeBlocos);
+    
+     coordenada Rv[quantidadeDeFrames][quantidadeDeBlocos];
+     coordenada Ra[quantidadeDeFrames][quantidadeDeBlocos];
 
-    //Essa leitura aqui tem que ser fora do laço pra eu poder colocar a condição de parada no final do laço
-    //frameEmBlocosAtual = divideFrameEmBlocos(fp, width, height, quantidadeDeBlocos); //em determinado momento vai ser null   
-    
-    coordenada Rv[quantidadeDeFrames][quantidadeDeBlocos];
-    coordenada Ra[quantidadeDeFrames][quantidadeDeBlocos];
-    //coordenada **Rv = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Rv)); //referencia
-    //coordenada **Ra = (coordenada **)malloc(quantidadeDeBlocos * sizeof(*Ra)); //atual
-    
-    char cstr[quantidadeDeFrames][22*quantidadeDeBlocos];// = new char[quantidadeDeFrames][22];
-    // std::string str[quantidadeDeFrames];
 	#pragma omp parallel for shared(frameEmBlocosReferencia,quantidadeDeBlocos, Rv, Ra) 
-		for (int w = 1;  w < quantidadeDeFrames ; w++) //quantidadeDeFrames
+		for (int w = 1;  w < quantidadeDeFrames ; w++) 
         {
-            frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); //em determinado momento vai ser null
+             divideFrameEmBlocos(framesPraComparar[w], frameEmBlocosAtual, quantidadeDeBlocos); 
             // printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
-
-			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w-1],Ra[w-1], quantidadeDeBlocos, w); //Essa função tá levando todo o tempo do mundo pra resolver
-            //
+			comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w-1],Ra[w-1], quantidadeDeBlocos, w); 
             str[w-1] = imprimeCorrespondencia(Rv[w-1],Ra[w-1], quantidadeDeBlocos);
-            // printf("%d ",w);
         }
-    return str;
+    deletaTypeFrame(framesPraComparar);
+    free(frameEmBlocosAtual);
+    free(frameEmBlocosReferencia);
+    return ;
 }
 
 void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv ,coordenada *Ra, int quantidadeDeBlocos, int framePosicao)
 {
-    printf("Estou comparando frame\n");
     bool igualdade;
-    // int indiceBlocoMaisParecido = -1;
-    // int menorNivelDeProximidade = 1000000;
     int nivelDeProximidadeAtual[quantidadeDeBlocos];
     int indiceBlocoMaisParecido[quantidadeDeBlocos];
     int menorNivelDeProximidade[quantidadeDeBlocos];
@@ -217,9 +218,9 @@ int calculaNivelDeProximidade(bloco a, bloco b)
 
 
 
-bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
+void divideFrameEmBlocos(TypeFrame frame, bloco *resultado, int quantidadeDeBlocos)
 {
-    bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco)); // TODO:Esse valor vai precisar ser alterado depois
+    // bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco)); // TODO:Esse valor vai precisar ser alterado depois
     bloco blocoAtual;
 
 	// #pragma omp for collapse(2)
@@ -232,11 +233,11 @@ bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
 			int novoI = (int)i / tamanhoDoBloco;
 			int indice = novoI * (int)(frame.width / tamanhoDoBloco) + novoJ;
 			// printf("%d  ", indice);
-			frameEmBlocos[indice] = blocoAtual; // Coloca o bloco atual em uma posição do array
+			resultado[indice] = blocoAtual; // Coloca o bloco atual em uma posição do array
         }
 
     }
-    return frameEmBlocos;
+    // return 
 }
 
 bloco criaBloco(int i, int j, unsigned char **frame)
