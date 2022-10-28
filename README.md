@@ -1,12 +1,16 @@
 # trabalho-1-IPPD
 
-gcc -fopenmp arquivo2.c -lpthread && ./a.out
+## Integrantes
 
-## Comando para rodar o programa e gerar uma saída
-     g++ -fopenmp main.cpp -lpthread && ./a.out >a.txt
+- Darlei Matheus Schmegel
+- Dauan Ghisleni Zolinger
+- Letícia Pegoraro Garcez
+- Victor Kunde Bergmann
 
-## PC 4 núcleos
- - Roda o programa em 13 minutos e 20 segundos. 
+## Comando para rodar o programa e colocar as saída no arquivo saida.txt
+
+     g++ -fopenmp main.cpp -lpthread && ./a.out >saida.txt
 
 ## PC 8 núcleos 16 threads
-- Roda o programa em 38 segundos.
+
+- Rodou o programa em 39.428647 segundos.
