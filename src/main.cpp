@@ -9,7 +9,7 @@
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 120;
+const int quantidadeDeFrames = 20;
 
 typedef struct TypeFrame
 {
@@ -59,7 +59,10 @@ int main(int argc, char *argv[])
     // contagem do tempo
     double begin, end;
     begin = omp_get_wtime();
+    MPI_Init(NULL, NULL); // Inicialização
     leVideo(fp, width, height, str);
+    MPI_Finalize(); // Finalização
+
     end = omp_get_wtime();
     fclose(fp);
     printf("====================================================\n");
@@ -127,15 +130,18 @@ void leVideo(FILE *fp, int width, int height, string *str)
 
     frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos); 
 
-//#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
-    int quantidade_de_maquinas, codigo_core, aux;
+    int quantidade_de_maquinas, meu_codigo, aux;
     char computador[MPI_MAX_PROCESSOR_NAME];
-    MPI_Init(NULL, NULL); // Inicialização
+    // MPI_Init(NULL, NULL); // Inicialização
     MPI_Comm_size(MPI_COMM_WORLD, &quantidade_de_maquinas); // Quantos processos envolvidos?
-    MPI_Comm_rank(MPI_COMM_WORLD, &codigo_core); // Meu identificador
+    MPI_Comm_rank(MPI_COMM_WORLD, &meu_codigo); // Meu identificador
     MPI_Get_processor_name(computador, &aux);
-    quantidadeDeFrames_doCore = quantidadeDeFrames / quantidade_de_maquinas;
-    for (int w = quantidadeDeFrames_doCore*codigo_core+1; w < quantidadeDeFrames; w++)
+    int quantidadeDeFrames_doCore = quantidadeDeFrames;
+    int numeros_do_core = quantidadeDeFrames_doCore/quantidade_de_maquinas;
+    int resto = quantidadeDeFrames_doCore%quantidade_de_maquinas;
+
+//#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
+    for (int w = numeros_do_core * meu_codigo + 1; w < numeros_do_core*meu_codigo+numeros_do_core -1; w++)
     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
         //  Então posso dar free nele aqui dentro do for depois
@@ -146,7 +152,16 @@ void leVideo(FILE *fp, int width, int height, string *str)
         str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
         free(frameEmBlocosAtual);
     }
-    MPI_Finalize(); // Finalização
+    if(meu_codigo < resto && resto != 0){
+        int w = ((numeros_do_core*quantidade_de_maquinas) + meu_codigo);
+        bloco *frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); // em determinado momento vai ser null
+
+        // printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
+        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w - 1], Ra[w - 1], quantidadeDeBlocos, w);
+        str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
+        free(frameEmBlocosAtual);
+    }
+    // MPI_Finalize(); // Finalização
     deletaTypeFrame(framesPraComparar);
     free(frameEmBlocosReferencia);
     return;
