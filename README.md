@@ -21,6 +21,24 @@ $ apt-get install mpich
 $ mpicxx -fopenmp main.cpp -lpthread && ./a.out >saida.txt
 ```
 
+## Compilar e executar MPI com mais de um nó
+
+```
+$ mpicxx -fopenmp main.cpp -lpthread && && mpirun --host localhost:2 ./a.out >saida.txt
+```
+
+## Rodar com mais de um nó virtual
+
+```
+$ mpirun --host localhost:2 ./ex
+```
+
+## Compilar e executar com mais de um nó virtual
+
+```
+$ mpicxx ex.cpp -o ex && mpirun --host localhost:2 ./ex
+```
+
 ## Comando para rodar o programa e colocar as saída no arquivo saida.txt
 
 ```

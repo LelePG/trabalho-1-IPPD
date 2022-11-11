@@ -4,6 +4,7 @@
 #include <string> 
 #include <cstring>
 #include <omp.h>
+#include <mpi.h>
 
 using namespace std;
 
@@ -126,8 +127,15 @@ void leVideo(FILE *fp, int width, int height, string *str)
 
     frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos); 
 
-#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
-    for (int w = 1; w < quantidadeDeFrames; w++)
+//#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
+    int quantidade_de_maquinas, codigo_core, aux;
+    char computador[MPI_MAX_PROCESSOR_NAME];
+    MPI_Init(NULL, NULL); // Inicialização
+    MPI_Comm_size(MPI_COMM_WORLD, &quantidade_de_maquinas); // Quantos processos envolvidos?
+    MPI_Comm_rank(MPI_COMM_WORLD, &codigo_core); // Meu identificador
+    MPI_Get_processor_name(computador, &aux);
+    quantidadeDeFrames_doCore = quantidadeDeFrames / quantidade_de_maquinas;
+    for (int w = quantidadeDeFrames_doCore*codigo_core+1; w < quantidadeDeFrames; w++)
     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
         //  Então posso dar free nele aqui dentro do for depois
@@ -138,6 +146,7 @@ void leVideo(FILE *fp, int width, int height, string *str)
         str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
         free(frameEmBlocosAtual);
     }
+    MPI_Finalize(); // Finalização
     deletaTypeFrame(framesPraComparar);
     free(frameEmBlocosReferencia);
     return;
