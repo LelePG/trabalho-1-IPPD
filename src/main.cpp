@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <iostream>
-#include <string> 
+#include <string>
 #include <cstring>
 #include <omp.h>
 #include <mpi.h>
@@ -9,7 +9,7 @@
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 20;
+const int quantidadeDeFrames = 10;
 
 typedef struct TypeFrame
 {
@@ -40,6 +40,7 @@ int calculaNivelDeProximidade(bloco a, bloco b);
 void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv, coordenada *Ra, int quantidadeDeBlocos, int framePosicao);
 string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor);
 void deletaTypeFrame(TypeFrame frame);
+void leVideoMPI(bloco *frameEmBlocosReferencia, bloco **framesEmBlocos, int width, int height, string *str);
 
 int main(int argc, char *argv[])
 {
@@ -47,6 +48,10 @@ int main(int argc, char *argv[])
     int height = 360;
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
     string str[quantidadeDeFrames];
+    TypeFrame framesPraComparar[quantidadeDeFrames];
+    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
+    bloco *frameEmBlocosReferencia;
+    bloco **framesEmBlocos;
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -58,10 +63,22 @@ int main(int argc, char *argv[])
 
     // contagem do tempo
     double begin, end;
+
     begin = omp_get_wtime();
-    MPI_Init(NULL, NULL); // Inicialização
-    leVideo(fp, width, height, str);
-    MPI_Finalize(); // Finalização
+
+    // Le todos os frames e deixa eles com o formato de blocos
+    for (int w = 0; w < quantidadeDeFrames; w++)
+    {
+        leFrame(fp, framesPraComparar[w], width, height);
+        framesEmBlocos[w] = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos);
+    }
+
+    frameEmBlocosReferencia = framesEmBlocos[0];
+
+    leVideoMPI(frameEmBlocosReferencia, framesEmBlocos, width, height, str);
+    // MPI_Init(NULL, NULL); // Inicialização
+    // leVideo(fp, width, height, str);
+    // MPI_Finalize(); // Finalização
 
     end = omp_get_wtime();
     fclose(fp);
@@ -113,6 +130,54 @@ void deletaTypeFrame(TypeFrame *frame)
     }
 }
 
+void leVideoMPI(bloco *frameEmBlocosReferencia, bloco **framesEmBlocos, int width, int height, string *str)
+{
+    // percorrer o array de frames e transformar em blocos
+    //  espalhar os blocos ou espalhar os frames
+    //  processar
+    //  retornar a string nos processos
+
+    int quantidade_de_maquinas, meu_codigo, aux;
+    char computador[MPI_MAX_PROCESSOR_NAME];
+    MPI_Init(NULL, NULL);                                   // Inicialização
+    MPI_Comm_size(MPI_COMM_WORLD, &quantidade_de_maquinas); // Quantos processos envolvidos?
+    MPI_Comm_rank(MPI_COMM_WORLD, &meu_codigo);             // Meu identificador
+    MPI_Get_processor_name(computador, &aux);
+    // Temos o frame de referencia e uma matriz com todos os outros frames no formato de blocos
+
+    // Configuração da struct bloco como um tipo do MPI
+    MPI_Datatype bloco_t;
+    MPI_Datatype types[3] = {MPI_CHAR, MPI_INT, MPI_INT};
+    int blocklen[3] = {tamanhoDoBloco * tamanhoDoBloco, 4, 4};
+    MPI_Aint disp[3];
+    MPI_Type_create_struct(3, blocklen, disp, types, &bloco_t);
+    MPI_Type_commit(&bloco_t);
+
+    // MPI_Scatter(
+    // (void*) framesEmBlocos, //array do tipo que vou enviar
+    // 1, //quantas posições do array vou enviar
+    // bloco_t, //tipo de dado que vou enviar
+    // (void*) str, //array onde vem minha resposta
+    // int recv_count, //quantas posições vou receber
+    // MPI_Datatype recv_datatype, //tipo do array que vou receber
+    // int root,
+    // MPI_Comm communicator);
+
+    // MPI_Scatter(
+    // void* send_data, //array do tipo que vou enviar
+    // int send_count, //quantas posições do array vou enviar
+    // MPI_Datatype send_datatype, //tipo de dado que vou enviar
+    // void* recv_data, //array onde vem minha resposta
+    // int recv_count, //quantas posições vou receber
+    // MPI_Datatype recv_datatype, //tipo do array que vou receber
+    // int root,
+    // MPI_Comm communicator)
+
+    // getter
+    // if(meu_codigo ==0) retorna a string
+    MPI_Finalize();
+}
+
 void leVideo(FILE *fp, int width, int height, string *str)
 {
     int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
@@ -128,20 +193,10 @@ void leVideo(FILE *fp, int width, int height, string *str)
         leFrame(fp, framesPraComparar[w], width, height);
     }
 
-    frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos); 
+    frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos);
 
-    int quantidade_de_maquinas, meu_codigo, aux;
-    char computador[MPI_MAX_PROCESSOR_NAME];
-    // MPI_Init(NULL, NULL); // Inicialização
-    MPI_Comm_size(MPI_COMM_WORLD, &quantidade_de_maquinas); // Quantos processos envolvidos?
-    MPI_Comm_rank(MPI_COMM_WORLD, &meu_codigo); // Meu identificador
-    MPI_Get_processor_name(computador, &aux);
-    int quantidadeDeFrames_doCore = quantidadeDeFrames;
-    int numeros_do_core = quantidadeDeFrames_doCore/quantidade_de_maquinas;
-    int resto = quantidadeDeFrames_doCore%quantidade_de_maquinas;
-
-//#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
-    for (int w = numeros_do_core * meu_codigo + 1; w < numeros_do_core*meu_codigo+numeros_do_core -1; w++)
+#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
+    for (int w = 1; w < quantidadeDeFrames; w++)
     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
         //  Então posso dar free nele aqui dentro do for depois
@@ -152,16 +207,6 @@ void leVideo(FILE *fp, int width, int height, string *str)
         str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
         free(frameEmBlocosAtual);
     }
-    if(meu_codigo < resto && resto != 0){
-        int w = ((numeros_do_core*quantidade_de_maquinas) + meu_codigo);
-        bloco *frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); // em determinado momento vai ser null
-
-        // printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
-        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w - 1], Ra[w - 1], quantidadeDeBlocos, w);
-        str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
-        free(frameEmBlocosAtual);
-    }
-    // MPI_Finalize(); // Finalização
     deletaTypeFrame(framesPraComparar);
     free(frameEmBlocosReferencia);
     return;
@@ -222,7 +267,6 @@ string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
     return retorno;
 }
 
-
 int calculaNivelDeProximidade(bloco a, bloco b)
 {
     float diff = 0;
@@ -239,7 +283,7 @@ int calculaNivelDeProximidade(bloco a, bloco b)
 bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
 {
 
-    bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco)); 
+    bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
 
 #pragma parallel omp for collapse(2) shared(frameEmBlocos) // pode não compensar dependendo da máquina
     for (int i = 0; i < frame.height; i += tamanhoDoBloco)
