@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <cstdlib>
-#include <iostream>
+#include <iostream> //pode dar problema
 #include <string>
 #include <cstring>
 #include <omp.h>
