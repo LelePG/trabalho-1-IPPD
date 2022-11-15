@@ -31,6 +31,15 @@ typedef struct coordenada
     int y;
 } coordenada;
 
+typedef struct Correspondencia
+{
+    int xReferencia;
+    int yReferencia;
+    int xAtual;
+    int yAtual;
+
+} Correspondencia;
+
 void leVideo(FILE *fp, int width, int heigth, string *str);
 int leFrame(FILE *fp, TypeFrame frame, int width, int height);
 void pulaCanais(FILE *fp, int width, int height);
@@ -47,7 +56,8 @@ int main(int argc, char *argv[])
     int width = 640;
     int height = 360;
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
-    string str[quantidadeDeFrames];
+    //string str[quantidadeDeFrames];
+    Correspondencia correspondencias[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
     TypeFrame framesPraComparar[quantidadeDeFrames];
     int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
     bloco *frameEmBlocosReferencia;
