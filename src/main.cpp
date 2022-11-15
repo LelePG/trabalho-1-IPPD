@@ -4,6 +4,7 @@
 #include <string>
 #include <cstring>
 #include <omp.h>
+#include <mpi.h>
 
 using namespace std;
 
@@ -61,11 +62,7 @@ int main(int argc, char *argv[])
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
 
     // Criação da matriz TypeCorrespondencia
-    TypeCorrespondencia **correspondencias = (TypeCorrespondencia **)malloc(quantidadeDeFrames * sizeof(TypeCorrespondencia *));
-    for (int i = 0; i < quantidadeDeBlocosPorFrame; i++)
-    {
-        correspondencias[i] = (TypeCorrespondencia *)malloc(quantidadeDeBlocosPorFrame * sizeof(TypeCorrespondencia));
-    }
+    TypeCorrespondencia correspondencias[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -96,7 +93,7 @@ int main(int argc, char *argv[])
     // contagem do tempo
     //double begin, end;
     //begin = omp_get_wtime();
-    manipulaVideo(frameEmBlocosReferencia, framesDoVideo, width, height, correspondencias);
+    manipulaVideo(frameEmBlocosReferencia, framesDoVideo, width, height, (TypeCorrespondencia **)correspondencias);
     //end = omp_get_wtime();
     //printf("====================================================\n");
     //printf("Tempo em segundos execução %f\n", end - begin);
@@ -143,13 +140,20 @@ void manipulaVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo,
     int quantidadeDeBlocosPorFrame = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
     TypeCoordenada Rv[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
     TypeCoordenada Ra[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
+
+    // correspondencias= (TypeCorrespondencia **)malloc(quantidadeDeFrames * sizeof(TypeCorrespondencia *));
+    // for (int i = 0; i < quantidadeDeBlocosPorFrame; i++)
+    // {
+    //     correspondencias[i] = (TypeCorrespondencia *)malloc(quantidadeDeBlocosPorFrame * sizeof(TypeCorrespondencia));
+    // }
     
+    MPI_Init(NULL,NULL);
 
     // printf("Quantidade de Blocos: %d\n", quantidadeDeBlocosPorFrame);
     // AQUI VAI O MPI
     //  #pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocosPorFrame, correspondencias, Rv, Ra)
-    for (int w = 0; w < quantidadeDeFrames; w++)
-    {
+     for (int w = 0; w < quantidadeDeFrames-1; w++)
+     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
         //  Então posso dar free nele aqui dentro do for depois
         TypeBloco *frameEmBlocosAtual = divideFrameEmBlocos(framesDoVideo[w], quantidadeDeBlocosPorFrame); // em determinado momento vai ser null
@@ -163,12 +167,13 @@ void manipulaVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo,
         free(frameEmBlocosAtual);
     }
 
-    // impressão do resultado
-    printf("Correlação dos blocos nos frames:\n");
-    for (int i = 0; i < quantidadeDeFrames -1; i++)
-    {
-        printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, imprimeCorrespondencia(correspondencias[i], quantidadeDeBlocosPorFrame));
+    // // impressão do resultado
+     printf("Correlação dos blocos nos frames:\n");
+     for (int i = 0; i < quantidadeDeFrames -1; i++)
+     {
+         printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, imprimeCorrespondencia(correspondencias[i], quantidadeDeBlocosPorFrame));
     }
+     MPI_Finalize();
     return;
 }
 
