@@ -9,6 +9,8 @@
 using namespace std;
 
 const int tamanhoDoBloco = 5;
+const int quantidadeDeFrames = 6;
+const int quantidadeDeBlocosPorFrame = 5;
 typedef struct bloco
 {
     unsigned char blocoDeVerdade[tamanhoDoBloco][tamanhoDoBloco];
@@ -18,6 +20,7 @@ typedef struct bloco
 
 typedef struct correspondencia
 {
+    int indiceFrame;
     int xReferencia;
     int yReferencia;
     int xAtual;
@@ -25,14 +28,14 @@ typedef struct correspondencia
 
 } correspondencia;
 
-correspondencia manipula(bloco a); // Função que vai fazer algum tipo de manipulação do dado
+correspondencia manipula(bloco a, int i); // Função que vai fazer algum tipo de manipulação do dado
 
 int main(int argc, char **argv)
 {
     int quantidade_de_maquinas, meu_codigo;
 
-    bloco blocosArray[6] = {}; // Vetor de entrada
-    for (int i = 0; i < 6; i++)
+    bloco blocosArray[quantidadeDeFrames] = {}; // Vetor de entrada
+    for (int i = 0; i < quantidadeDeFrames; i++)
     {
         blocosArray[i].x = rand() % 100;
         blocosArray[i].y = rand() % 100;
@@ -41,8 +44,7 @@ int main(int argc, char **argv)
         blocosArray[i].blocoDeVerdade[1][0] = 'c';
         blocosArray[i].blocoDeVerdade[1][1] = 'd';
     }
-    correspondencia correspondenciaArrayResposta[6];
-    
+    correspondencia correspondenciaFinal[quantidadeDeFrames*quantidadeDeBlocosPorFrame];
 
     // Precisa usar a sintaxe de ponteiro. Se usar array NÃO FUNCIONA e não me perguntem porquê.
     int *elementosPorProcesso = (int *)malloc(sizeof(int) * quantidade_de_maquinas); // Quantos processos vão pro processador           // array describing how many elements to send to each process
@@ -76,14 +78,14 @@ int main(int argc, char **argv)
 
     // Definição da Struct Correspondencia
     MPI_Datatype MPI_CORRESPONDENCIA;
-    MPI_Datatype types2[4] = {MPI_INT, MPI_INT, MPI_INT, MPI_INT};
-    int quantidadesDeVariaveis2[4] = {1, 1, 1, 1};
-    // unsiged char é 1 byte e int é 4 bytes
-    MPI_Aint ondeAsVariaveisIniciam2[4] = {0, 4, 8, 12};
-    MPI_Type_create_struct(4, quantidadesDeVariaveis2, ondeAsVariaveisIniciam2, types2, &MPI_CORRESPONDENCIA);
+    MPI_Datatype types2[5] = {MPI_INT, MPI_INT, MPI_INT, MPI_INT,MPI_INT};
+    int quantidadesDeVariaveis2[5] = {1, 1, 1, 1,1};
+    // unsiged char é 1 byte e int é 5 bytes
+    MPI_Aint ondeAsVariaveisIniciam2[5] = {0, 4, 8, 12,16};
+    MPI_Type_create_struct(5, quantidadesDeVariaveis2, ondeAsVariaveisIniciam2, types2, &MPI_CORRESPONDENCIA);
     MPI_Type_commit(&MPI_CORRESPONDENCIA);
 
-       int processosResto = 6 % quantidade_de_maquinas; // Quantidade de resto que é gerada pela quantidade de máquina.
+       int processosResto = quantidadeDeFrames % quantidade_de_maquinas; // Quantidade de resto que é gerada pela quantidade de máquina.
     // Essa variável precisa ficar aqui porque senão quantidade_de_maquinas não tá definido
 
     // Cria vetor de quantidade de elementosPorProcesso
@@ -122,18 +124,30 @@ int main(int argc, char **argv)
     // processamento
     // em cada processo, eu tenho uma fatia de tamanhoChunck de elementos do meu array.
     // Essa fatia é um array que vai começar em zero e vai até tamanhoChunck-1
-    correspondencia correspondenciasResultado[tamanhoChunck];
+    int tamanhoDasCorrespondencias = tamanhoChunck*quantidadeDeBlocosPorFrame;
+    correspondencia correspondenciasResultado[tamanhoDasCorrespondencias];
     for (int i = 0; i < tamanhoChunck; i++)
     {
-        // printf("editando blocossAux[%d] do processo %d que tem o valor (%d,%d)\n", i, meu_codigo, blocosAux[i].x, blocosAux[i].y);
-        correspondenciasResultado[i] = manipula(blocosAux[i]);
+        for (int j = 0; j < quantidadeDeBlocosPorFrame; j++)
+        {
+        int indice = (1*i)+j;
+            
+        correspondenciasResultado[indice] = manipula(blocosAux[i],i);
+        // printf("editando blocossAux[%d] do processo %d que tem o valor (%d,%d)\n", indice, meu_codigo, correspondenciasResultado[i].xAtual, correspondenciasResultado[i].xReferencia);
+        }        
     }
+    // for (int i = 0; i < tamanhoChunck*quantidadeDeBlocosPorFrame; i++)
+    // {
+    //     printf("editando blocossAux[%d] do processo %d que tem o valor (%d,%d)\n", i, meu_codigo, correspondenciasResultado[i].xAtual, correspondenciasResultado[i].xReferencia);
+        
+    // }
+    
 
     MPI_Gatherv(
         correspondenciasResultado,    // Variável que armazena as "fatias" que eu quero armazenar no meu array de retorno
-        tamanhoChunck,                // Quantidades de variáveis que eu tenho na minha fatia e que vou colocar no resultado
+        tamanhoDasCorrespondencias,   // Quantidades de variáveis que eu tenho na minha fatia e que vou colocar no resultado
         MPI_CORRESPONDENCIA,          // Tipo dos elementos da fatia
-        correspondenciaArrayResposta, // Variavel onde eu vou juntar todas as fatias
+        correspondenciaFinal,         // Variavel onde eu vou juntar todas as fatias
         elementosPorProcesso,         // quantidades de elementos dessa fatia que eu quero colocar na variável que armazena todas as fatias
         aPartirDoIndice,              // A partir de qual índice eu coloco as fatias do array BLOCOerno no array resposta
         MPI_CORRESPONDENCIA,          // Tipo dos elementos que da variável que armazena as fatias
@@ -153,9 +167,9 @@ int main(int argc, char **argv)
             // printf("deslocamento[%d] = %d\n", i, aPartirDoIndice[i]);
         }
         // Print do resultado final
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < quantidadeDeFrames*quantidadeDeBlocosPorFrame; i++)
         {
-            printf("resultado[%d] = (%d,%d)=>(%d,%d)\n", i, correspondenciaArrayResposta[i].xAtual, correspondenciaArrayResposta[i].yAtual, correspondenciaArrayResposta[i].xReferencia, correspondenciaArrayResposta[i].yReferencia);
+            printf("resultado[%d] = (%d,%d)=>(%d,%d)\n", correspondenciaFinal[i].indiceFrame, correspondenciaFinal[i].xAtual, correspondenciaFinal[i].yAtual, correspondenciaFinal[i].xReferencia, correspondenciaFinal[i].yReferencia);
         }
         printf("Processo 0\n");
     }
@@ -164,12 +178,13 @@ int main(int argc, char **argv)
     free(aPartirDoIndice);
 }
 
-correspondencia manipula(bloco a)
+correspondencia manipula(bloco a, int i)
 {
     correspondencia c;
-    c.xAtual = a.x;
+    c.indiceFrame = i;
+    c.xAtual = a.x+i;
     c.yAtual = a.y;
-    c.xReferencia = a.x + a.y;
+    c.xReferencia = a.x + a.y +i;
     c.yReferencia = a.x - a.y;
     return c;
 }
