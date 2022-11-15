@@ -39,17 +39,17 @@ typedef struct TypeCoordenada
     int y;
 } TypeCoordenada;
 
-void leVideo(TypeBloco *frameReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias);
 int leFrame(FILE *fp, TypeFrame frame, int width, int height);
 void pulaCanais(FILE *fp, int width, int height);
+void manipulaVideo(TypeBloco *frameReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias);
 TypeBloco criaBloco(int i, int j, unsigned char **frame);
 TypeBloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocosPorFrame);
 int calculaNivelDeProximidade(TypeBloco a, TypeBloco b);
 void comparaBlocos(TypeBloco *frame1, TypeBloco *frame2, TypeCoordenada *Rv, TypeCoordenada *Ra, int quantidadeDeBlocosPorFrame, int framePosicao);
-// string imprimeCorrespondencia(TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanhoVetor);
 void deletaArrayDeTypeFrame(TypeFrame *frame, int tamanho);
 char *imprimeCorrespondencia(TypeCorrespondencia *correspondencias, int tamanhoVetor);
 void copiaCorrespondencia(TypeCorrespondencia *correspondencia, TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanho);
+void imprimeCorrespondenciaTestes(TypeCorrespondencia **correspondencias, int tamanho);
 
 int main(int argc, char *argv[])
 {
@@ -57,8 +57,10 @@ int main(int argc, char *argv[])
     int height = 360;
     int quantidadeDeBlocosPorFrame = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
     int quantidadeDeFramesSemReferencia = quantidadeDeFrames - 1;
+
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
-    string str[quantidadeDeFrames];
+
+    // Criação da matriz TypeCorrespondencia
     TypeCorrespondencia **correspondencias = (TypeCorrespondencia **)malloc(quantidadeDeFrames * sizeof(TypeCorrespondencia *));
     for (int i = 0; i < quantidadeDeBlocosPorFrame; i++)
     {
@@ -87,24 +89,18 @@ int main(int argc, char *argv[])
     {
         leFrame(fp, framesDoVideo[w], width, height);
     }
-    // Nesse ponto do código, framesDoVideo é uma variável que contém o código puro de todos os frames do vídeo.
+
+    fclose(fp);
+    // Nesse ponto do código, framesDoVideo é uma variável que contém o código puro de todos os frames do vídeo, e todo o vídeo foi lido.
 
     // contagem do tempo
-    double begin, end;
-    begin = omp_get_wtime();
-    leVideo(frameEmBlocosReferencia, framesDoVideo, width, height, correspondencias);
-    end = omp_get_wtime();
-    fclose(fp);
-    printf("====================================================\n");
-    printf("Tempo em segundos execução %f\n", end - begin);
-    printf("====================================================\n");
-
-    // impressão do resultado
-    printf("Correlação dos blocos nos frames:\n");
-    for (int i = 0; i < quantidadeDeFramesSemReferencia; i++)
-    {
-        printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, imprimeCorrespondencia(correspondencias[i], quantidadeDeBlocosPorFrame));
-    }
+    //double begin, end;
+    //begin = omp_get_wtime();
+    manipulaVideo(frameEmBlocosReferencia, framesDoVideo, width, height, correspondencias);
+    //end = omp_get_wtime();
+    //printf("====================================================\n");
+    //printf("Tempo em segundos execução %f\n", end - begin);
+    //printf("====================================================\n");
 
     free(frameEmBlocosReferencia);
     deletaArrayDeTypeFrame(framesDoVideo, quantidadeDeFramesSemReferencia);
@@ -142,15 +138,16 @@ void deletaArrayDeTypeFrame(TypeFrame *frame, int tamanho)
     }
 }
 
-void leVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias)
+void manipulaVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias)
 {
     int quantidadeDeBlocosPorFrame = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
     TypeCoordenada Rv[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
     TypeCoordenada Ra[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
+    
 
     // printf("Quantidade de Blocos: %d\n", quantidadeDeBlocosPorFrame);
-
-#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocosPorFrame, correspondencias, Rv, Ra)
+    // AQUI VAI O MPI
+    //  #pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocosPorFrame, correspondencias, Rv, Ra)
     for (int w = 0; w < quantidadeDeFrames; w++)
     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
@@ -166,6 +163,12 @@ void leVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo, int w
         free(frameEmBlocosAtual);
     }
 
+    // impressão do resultado
+    printf("Correlação dos blocos nos frames:\n");
+    for (int i = 0; i < quantidadeDeFrames -1; i++)
+    {
+        printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, imprimeCorrespondencia(correspondencias[i], quantidadeDeBlocosPorFrame));
+    }
     return;
 }
 
@@ -220,33 +223,20 @@ void comparaBlocos(TypeBloco *frame1, TypeBloco *frame2, TypeCoordenada *Rv, Typ
     return;
 }
 
-string imprimeCorrespondencia(TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanhoVetor)
-{
-    string retorno = "";
-    for (int i = 0; i < tamanhoVetor; i++)
-    {
-        string Rvx = to_string(Rv[i].x);
-        string Rvy = to_string(Rv[i].y);
-        string Rax = to_string(Ra[i].y);
-        string Ray = to_string(Ra[i].x);
-
-        retorno += "(" + Rvx + "," + Rvy + ") => (" + Rax + "," + Ray + ")\n";
-    }
-    return retorno;
-}
-
 char *imprimeCorrespondencia(TypeCorrespondencia *correspondencias, int tamanhoVetor)
 {
     string retorno = "";
+
     for (int i = 0; i < tamanhoVetor; i++)
     {
-        // printf("%d\n", correspondencias[i].xReferencia);
-        string Rvx = to_string((int)correspondencias[i].xReferencia);
-         string Rvy = to_string(correspondencias[i].yReferencia);
-         string Rax = to_string(correspondencias[i].yAtual);
-         string Ray = to_string(correspondencias[i].xAtual);
+        // printf("%d\n",i);
+        // printf("%d\n", (int) correspondencias[i].xReferencia);
+        string Rvx = to_string(correspondencias[i].xReferencia);
+        string Rvy = to_string(correspondencias[i].yReferencia);
+        string Rax = to_string(correspondencias[i].yAtual);
+        string Ray = to_string(correspondencias[i].xAtual);
 
-         retorno += "(" + Rvx + "," + Rvy + ") => (" + Rax + "," + Ray + ")\n";
+        retorno += "(" + Rvx + "," + Rvy + ") => (" + Rax + "," + Ray + ")\n";
     }
     return (char *)retorno.c_str();
 }
