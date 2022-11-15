@@ -1,15 +1,14 @@
 #include <stdio.h>
 #include <cstdlib>
-#include <iostream> //pode dar problema
+#include <iostream>
 #include <string>
 #include <cstring>
 #include <omp.h>
-#include <mpi.h>
 
 using namespace std;
 
 const int tamanhoDoBloco = 8;
-const int quantidadeDeFrames = 10;
+const int quantidadeDeFrames = 5;
 
 typedef struct TypeFrame
 {
@@ -18,50 +17,53 @@ typedef struct TypeFrame
     unsigned char **conteudo = (unsigned char **)malloc(sizeof *conteudo * height);
 } TypeFrame;
 
-typedef struct bloco
+typedef struct TypeBloco
 {
     unsigned char bloco[tamanhoDoBloco][tamanhoDoBloco];
     int x;
     int y;
-} bloco;
+} TypeBloco;
 
-typedef struct coordenada
-{
-    int x;
-    int y;
-} coordenada;
-
-typedef struct Correspondencia
+typedef struct TypeCorrespondencia
 {
     int xReferencia;
     int yReferencia;
     int xAtual;
     int yAtual;
 
-} Correspondencia;
+} TypeCorrespondencia;
 
-void leVideo(FILE *fp, int width, int heigth, string *str);
+typedef struct TypeCoordenada
+{
+    int x;
+    int y;
+} TypeCoordenada;
+
+void leVideo(TypeBloco *frameReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias);
 int leFrame(FILE *fp, TypeFrame frame, int width, int height);
 void pulaCanais(FILE *fp, int width, int height);
-bloco criaBloco(int i, int j, unsigned char **frame);
-bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos);
-int calculaNivelDeProximidade(bloco a, bloco b);
-void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv, coordenada *Ra, int quantidadeDeBlocos, int framePosicao);
-string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor);
-void deletaTypeFrame(TypeFrame frame);
-void leVideoMPI(bloco *frameEmBlocosReferencia, bloco **framesEmBlocos, int width, int height, string *str);
+TypeBloco criaBloco(int i, int j, unsigned char **frame);
+TypeBloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocosPorFrame);
+int calculaNivelDeProximidade(TypeBloco a, TypeBloco b);
+void comparaBlocos(TypeBloco *frame1, TypeBloco *frame2, TypeCoordenada *Rv, TypeCoordenada *Ra, int quantidadeDeBlocosPorFrame, int framePosicao);
+// string imprimeCorrespondencia(TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanhoVetor);
+void deletaArrayDeTypeFrame(TypeFrame *frame, int tamanho);
+char *imprimeCorrespondencia(TypeCorrespondencia *correspondencias, int tamanhoVetor);
+void copiaCorrespondencia(TypeCorrespondencia *correspondencia, TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanho);
 
 int main(int argc, char *argv[])
 {
     int width = 640;
     int height = 360;
+    int quantidadeDeBlocosPorFrame = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
+    int quantidadeDeFramesSemReferencia = quantidadeDeFrames - 1;
     printf("Total de Threads Disponíveis: %d \n", omp_get_max_threads());
-    //string str[quantidadeDeFrames];
-    Correspondencia correspondencias[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
-    TypeFrame framesPraComparar[quantidadeDeFrames];
-    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
-    bloco *frameEmBlocosReferencia;
-    bloco **framesEmBlocos;
+    string str[quantidadeDeFrames];
+    TypeCorrespondencia **correspondencias = (TypeCorrespondencia **)malloc(quantidadeDeFrames * sizeof(TypeCorrespondencia *));
+    for (int i = 0; i < quantidadeDeBlocosPorFrame; i++)
+    {
+        correspondencias[i] = (TypeCorrespondencia *)malloc(quantidadeDeBlocosPorFrame * sizeof(TypeCorrespondencia));
+    }
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -71,25 +73,26 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    TypeFrame framesDoVideo[quantidadeDeFramesSemReferencia];
+    TypeBloco *frameEmBlocosReferencia;
+
+    // Fazer a leitura do vídeo pra usar o MPI posteriormente
+    // Leitura do frameDeReferencia e transformação do frame de Referencia pra blocos
+    TypeFrame frameReferencia;
+    leFrame(fp, frameReferencia, width, height);
+    frameEmBlocosReferencia = divideFrameEmBlocos(frameReferencia, quantidadeDeBlocosPorFrame);
+
+    // Leitura do resto do vídeo (considerando que o primeiro frame foi lido)
+    for (int w = 0; w < quantidadeDeFramesSemReferencia; w++)
+    {
+        leFrame(fp, framesDoVideo[w], width, height);
+    }
+    // Nesse ponto do código, framesDoVideo é uma variável que contém o código puro de todos os frames do vídeo.
+
     // contagem do tempo
     double begin, end;
-
     begin = omp_get_wtime();
-
-    // Le todos os frames e deixa eles com o formato de blocos
-    for (int w = 0; w < quantidadeDeFrames; w++)
-    {
-        leFrame(fp, framesPraComparar[w], width, height);
-        framesEmBlocos[w] = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos);
-    }
-
-    frameEmBlocosReferencia = framesEmBlocos[0];
-
-    leVideoMPI(frameEmBlocosReferencia, framesEmBlocos, width, height, str);
-    // MPI_Init(NULL, NULL); // Inicialização
-    // leVideo(fp, width, height, str);
-    // MPI_Finalize(); // Finalização
-
+    leVideo(frameEmBlocosReferencia, framesDoVideo, width, height, correspondencias);
     end = omp_get_wtime();
     fclose(fp);
     printf("====================================================\n");
@@ -98,10 +101,13 @@ int main(int argc, char *argv[])
 
     // impressão do resultado
     printf("Correlação dos blocos nos frames:\n");
-    for (int i = 0; i < quantidadeDeFrames - 1; i++)
+    for (int i = 0; i < quantidadeDeFramesSemReferencia; i++)
     {
-        printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, str[i].c_str());
+        printf("_______________________________\nFrame[%d]\n%s_______________________________\n", i, imprimeCorrespondencia(correspondencias[i], quantidadeDeBlocosPorFrame));
     }
+
+    free(frameEmBlocosReferencia);
+    deletaArrayDeTypeFrame(framesDoVideo, quantidadeDeFramesSemReferencia);
 
     return 0;
 }
@@ -128,120 +134,72 @@ void pulaCanais(FILE *fp, int width, int height)
     free(aux);
 }
 
-void deletaTypeFrame(TypeFrame *frame)
+void deletaArrayDeTypeFrame(TypeFrame *frame, int tamanho)
 {
-    for (int i = 0; i < quantidadeDeFrames; i++)
+    for (int i = 0; i < tamanho; i++)
     {
-        for (int j = 0; j < frame[i].height; j++)
-        {
-            free(frame[i].conteudo[j]);
-        }
         free(frame[i].conteudo);
     }
 }
 
-void leVideoMPI(bloco *frameEmBlocosReferencia, bloco **framesEmBlocos, int width, int height, string *str)
+void leVideo(TypeBloco *frameEmBlocosReferencia, TypeFrame *framesDoVideo, int width, int height, TypeCorrespondencia **correspondencias)
 {
-    // percorrer o array de frames e transformar em blocos
-    //  espalhar os blocos ou espalhar os frames
-    //  processar
-    //  retornar a string nos processos
+    int quantidadeDeBlocosPorFrame = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
+    TypeCoordenada Rv[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
+    TypeCoordenada Ra[quantidadeDeFrames][quantidadeDeBlocosPorFrame];
 
-    int quantidade_de_maquinas, meu_codigo, aux;
-    char computador[MPI_MAX_PROCESSOR_NAME];
-    MPI_Init(NULL, NULL);                                   // Inicialização
-    MPI_Comm_size(MPI_COMM_WORLD, &quantidade_de_maquinas); // Quantos processos envolvidos?
-    MPI_Comm_rank(MPI_COMM_WORLD, &meu_codigo);             // Meu identificador
-    MPI_Get_processor_name(computador, &aux);
-    // Temos o frame de referencia e uma matriz com todos os outros frames no formato de blocos
+    // printf("Quantidade de Blocos: %d\n", quantidadeDeBlocosPorFrame);
 
-    // Configuração da struct bloco como um tipo do MPI
-    MPI_Datatype bloco_t;
-    MPI_Datatype types[3] = {MPI_CHAR, MPI_INT, MPI_INT};
-    int blocklen[3] = {tamanhoDoBloco * tamanhoDoBloco, 4, 4};
-    MPI_Aint disp[3];
-    MPI_Type_create_struct(3, blocklen, disp, types, &bloco_t);
-    MPI_Type_commit(&bloco_t);
-
-    // MPI_Scatter(
-    // (void*) framesEmBlocos, //array do tipo que vou enviar
-    // 1, //quantas posições do array vou enviar
-    // bloco_t, //tipo de dado que vou enviar
-    // (void*) str, //array onde vem minha resposta
-    // int recv_count, //quantas posições vou receber
-    // MPI_Datatype recv_datatype, //tipo do array que vou receber
-    // int root,
-    // MPI_Comm communicator);
-
-    // MPI_Scatter(
-    // void* send_data, //array do tipo que vou enviar
-    // int send_count, //quantas posições do array vou enviar
-    // MPI_Datatype send_datatype, //tipo de dado que vou enviar
-    // void* recv_data, //array onde vem minha resposta
-    // int recv_count, //quantas posições vou receber
-    // MPI_Datatype recv_datatype, //tipo do array que vou receber
-    // int root,
-    // MPI_Comm communicator)
-
-    // getter
-    // if(meu_codigo ==0) retorna a string
-    MPI_Finalize();
-}
-
-void leVideo(FILE *fp, int width, int height, string *str)
-{
-    int quantidadeDeBlocos = (int)((width) / tamanhoDoBloco) * (int)((height) / tamanhoDoBloco);
-    bloco *frameEmBlocosReferencia;
-    coordenada Rv[quantidadeDeFrames][quantidadeDeBlocos];
-    coordenada Ra[quantidadeDeFrames][quantidadeDeBlocos];
-    TypeFrame framesPraComparar[quantidadeDeFrames];
-
-    // printf("Quantidade de Blocos: %d\n", quantidadeDeBlocos);
-
+#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocosPorFrame, correspondencias, Rv, Ra)
     for (int w = 0; w < quantidadeDeFrames; w++)
-    {
-        leFrame(fp, framesPraComparar[w], width, height);
-    }
-
-    frameEmBlocosReferencia = divideFrameEmBlocos(framesPraComparar[0], quantidadeDeBlocos);
-
-#pragma omp parallel for shared(frameEmBlocosReferencia, quantidadeDeBlocos, Rv, Ra)
-    for (int w = 1; w < quantidadeDeFrames; w++)
     {
         // Esse daqui é um ponteiro pro cara que eu aloquei dentro do divideFrames em blocos
         //  Então posso dar free nele aqui dentro do for depois
-        bloco *frameEmBlocosAtual = divideFrameEmBlocos(framesPraComparar[w], quantidadeDeBlocos); // em determinado momento vai ser null
-
+        TypeBloco *frameEmBlocosAtual = divideFrameEmBlocos(framesDoVideo[w], quantidadeDeBlocosPorFrame); // em determinado momento vai ser null
         // printf("Inicio frame %d. Thread %d\n", w, omp_get_thread_num());
-        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w - 1], Ra[w - 1], quantidadeDeBlocos, w);
-        str[w - 1] = imprimeCorrespondencia(Rv[w - 1], Ra[w - 1], quantidadeDeBlocos);
+        comparaBlocos(frameEmBlocosReferencia, frameEmBlocosAtual, Rv[w], Ra[w], quantidadeDeBlocosPorFrame, w);
+        // str[w] = imprimeCorrespondencia(Rv[w], Ra[w], quantidadeDeBlocosPorFrame);
+
+        copiaCorrespondencia(correspondencias[w], Rv[w], Ra[w], quantidadeDeBlocosPorFrame);
+        // printf("%d\n", correspondencias[0][0].yAtual);
+        // exit(0);
         free(frameEmBlocosAtual);
     }
-    deletaTypeFrame(framesPraComparar);
-    free(frameEmBlocosReferencia);
+
     return;
 }
 
-void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv, coordenada *Ra, int quantidadeDeBlocos, int framePosicao)
+void copiaCorrespondencia(TypeCorrespondencia *correspondencia, TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanho)
+{
+    for (int i = 0; i < tamanho; i++)
+    {
+        correspondencia[i].xReferencia = Rv[i].x;
+        correspondencia[i].yReferencia = Rv[i].y;
+        correspondencia[i].yAtual = Ra[i].y;
+        correspondencia[i].xAtual = Ra[i].x;
+    }
+}
+
+void comparaBlocos(TypeBloco *frame1, TypeBloco *frame2, TypeCoordenada *Rv, TypeCoordenada *Ra, int quantidadeDeBlocosPorFrame, int framePosicao)
 {
     bool igualdade;
-    int nivelDeProximidadeAtual[quantidadeDeBlocos];
-    int indiceBlocoMaisParecido[quantidadeDeBlocos];
-    int menorNivelDeProximidade[quantidadeDeBlocos];
+    int nivelDeProximidadeAtual[quantidadeDeBlocosPorFrame];
+    int indiceBlocoMaisParecido[quantidadeDeBlocosPorFrame];
+    int menorNivelDeProximidade[quantidadeDeBlocosPorFrame];
     int i, j;
 
-    for (int i = 0; i < quantidadeDeBlocos; i++)
+    for (int i = 0; i < quantidadeDeBlocosPorFrame; i++)
     {
         indiceBlocoMaisParecido[i] = -1;
         menorNivelDeProximidade[i] = 1000000;
     }
 
 #pragma for collapse(2) nowait schedule(static)
-    for (i = 0; i < quantidadeDeBlocos; i++) // frame1
+    for (i = 0; i < quantidadeDeBlocosPorFrame; i++) // frame1
     {
-        for (j = 0; j <= quantidadeDeBlocos; j++) // frame2
+        for (j = 0; j <= quantidadeDeBlocosPorFrame; j++) // frame2
         {
-            if (j < quantidadeDeBlocos)
+            if (j < quantidadeDeBlocosPorFrame)
             {
                 nivelDeProximidadeAtual[i] = calculaNivelDeProximidade(frame1[i], frame2[j]);
                 if (nivelDeProximidadeAtual[i] < menorNivelDeProximidade[i])
@@ -262,7 +220,7 @@ void comparaBlocos(bloco *frame1, bloco *frame2, coordenada *Rv, coordenada *Ra,
     return;
 }
 
-string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
+string imprimeCorrespondencia(TypeCoordenada *Rv, TypeCoordenada *Ra, int tamanhoVetor)
 {
     string retorno = "";
     for (int i = 0; i < tamanhoVetor; i++)
@@ -277,7 +235,23 @@ string imprimeCorrespondencia(coordenada *Rv, coordenada *Ra, int tamanhoVetor)
     return retorno;
 }
 
-int calculaNivelDeProximidade(bloco a, bloco b)
+char *imprimeCorrespondencia(TypeCorrespondencia *correspondencias, int tamanhoVetor)
+{
+    string retorno = "";
+    for (int i = 0; i < tamanhoVetor; i++)
+    {
+        // printf("%d\n", correspondencias[i].xReferencia);
+        string Rvx = to_string((int)correspondencias[i].xReferencia);
+         string Rvy = to_string(correspondencias[i].yReferencia);
+         string Rax = to_string(correspondencias[i].yAtual);
+         string Ray = to_string(correspondencias[i].xAtual);
+
+         retorno += "(" + Rvx + "," + Rvy + ") => (" + Rax + "," + Ray + ")\n";
+    }
+    return (char *)retorno.c_str();
+}
+
+int calculaNivelDeProximidade(TypeBloco a, TypeBloco b)
 {
     float diff = 0;
     for (int i = 0; i < tamanhoDoBloco; i++)
@@ -290,17 +264,17 @@ int calculaNivelDeProximidade(bloco a, bloco b)
     return diff;
 }
 
-bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
+TypeBloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocosPorFrame)
 {
 
-    bloco *frameEmBlocos = (bloco *)malloc(quantidadeDeBlocos * sizeof(bloco));
+    TypeBloco *frameEmBlocos = (TypeBloco *)malloc(quantidadeDeBlocosPorFrame * sizeof(TypeBloco));
 
 #pragma parallel omp for collapse(2) shared(frameEmBlocos) // pode não compensar dependendo da máquina
     for (int i = 0; i < frame.height; i += tamanhoDoBloco)
     {
         for (int j = 0; j < frame.width; j += tamanhoDoBloco)
         {
-            bloco blocoAtual = criaBloco(i, j, frame.conteudo);
+            TypeBloco blocoAtual = criaBloco(i, j, frame.conteudo);
             int novoJ = (int)j / tamanhoDoBloco;
             int novoI = (int)i / tamanhoDoBloco;
             int indice = novoI * (int)(frame.width / tamanhoDoBloco) + novoJ;
@@ -310,9 +284,9 @@ bloco *divideFrameEmBlocos(TypeFrame frame, int quantidadeDeBlocos)
     return frameEmBlocos;
 }
 
-bloco criaBloco(int i, int j, unsigned char **frame)
+TypeBloco criaBloco(int i, int j, unsigned char **frame)
 {
-    bloco blocoRetorno;
+    TypeBloco blocoRetorno;
     blocoRetorno.x = i;
     blocoRetorno.y = j;
 
