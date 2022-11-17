@@ -42,7 +42,7 @@ int tamanhoTotal = quantidadeDeBlocosPorFrame*quantidadeDeFrames;
     {
         blocosArray[i].x = rand() % 100;
         blocosArray[i].y = rand() % 100;
-         blocosArray[i].frame = i+10;
+        blocosArray[i].frame = i%3;
         blocosArray[i].blocoDeVerdade[0][0] = 'a';
         blocosArray[i].blocoDeVerdade[0][1] = 'b';
         blocosArray[i].blocoDeVerdade[1][0] = 'c';
