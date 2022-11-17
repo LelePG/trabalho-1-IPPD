@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     TypeCorrespondencia *correspondencias = (TypeCorrespondencia *)malloc(quantidadeTotal * sizeof(TypeCorrespondencia));
     TypeBloco *frameEmBlocosReferencia;
     TypeFrame *framesDoVideo = (TypeFrame *)malloc(quantidadeDeFrames * sizeof(TypeFrame));
-    TypeBloco *framesDoVideoEmBlocos = (TypeBloco *)malloc(quantidadeTotal * sizeof(TypeFrame));
+    TypeBloco *framesDoVideoEmBlocos = (TypeBloco *)malloc(quantidadeTotal * sizeof(TypeBloco));
 
     FILE *fp = fopen("../video.yuv", "rb");
 
@@ -103,33 +103,14 @@ int main(int argc, char *argv[])
         TypeBloco *frameEmBlocosAtual = divideFrameEmBlocos(framesDoVideo[w], w, quantidadeDeBlocosPorFrame); // em determinado momento vai ser null
         // adicionar isso no framesDoVideoEmBlocos
         int deslocamento = w * quantidadeDeBlocosPorFrame;
+        printf("%d - ", deslocamento);
         //frameEmBlocosAtual.
         // Copia o frameEmBlocosAtual pra dentro do framesDoVideoEmBlocos
 
-        // Tamanho do bloco - 8
-        // quantidade de frames = 5
-        //  quantidade de framesSemReferencia = 4
-        //  qiamtodade De blocos por frame = 3600
-        //  quantidade total (de blocos no array) = 14400
-
         for (int z = 0; z < quantidadeDeBlocosPorFrame; z++)
         {
-            // 1 frame -> 5 blocos
-            // 2 -> 10 blocos
-            // 0 1 2 3 4 * 5 6 7 8 9 * 10 11 12 13 14 15
-            // z = 0 => 0; z=1 => 5 z = 2 => 10
-            // printf("%d - ", z + deslocamento);
-            try
-            {
-                framesDoVideoEmBlocos[z + deslocamento] = frameEmBlocosAtual[z];
-                // Block of code to try
-                //throw (404); // Throw an exception when a problem arise
-            }
-            catch (...) {
-                printf("%d   %d", (z + deslocamento), quantidadeTotal);
-                return (0);
-            // Block of code to handle errors
-            }    
+            framesDoVideoEmBlocos[z + deslocamento] = frameEmBlocosAtual[z];
+            printf("%d - ", (z + deslocamento));
         }
     }
 

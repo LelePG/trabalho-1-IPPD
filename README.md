@@ -24,7 +24,7 @@ $ mpicxx -fopenmp main.cpp -lpthread && ./a.out >saida.txt
 ## Compilar e executar MPI com mais de um nó
 
 ```
-$ mpicxx -fopenmp main.cpp -lpthread && && mpirun --host localhost:2 ./a.out >saida.txt
+$ mpicxx -fopenmp main.cpp -lpthread && mpirun --host localhost:2 ./a.out >saida.txt
 ```
 
 ## Rodar com mais de um nó virtual
